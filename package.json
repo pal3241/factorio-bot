@@ -1,0 +1,23 @@
+{
+  "name": "factorio-bot",
+  "version": "0.2.1",
+  "description": "Typed TypeScript client for the Factorio Bot World Bridge mod and Space Age sensors.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "engines": {"node": ">=22.0.0"},
+  "files": ["dist", "README.md"],
+  "exports": {
+    ".": {"types": "./dist/src/index.d.ts", "import": "./dist/src/index.js"},
+    "./rcon": {"types": "./dist/src/rcon.d.ts", "import": "./dist/src/rcon.js"}
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "example": "node dist/examples/read-world.js",
+    "example:space-age": "node dist/examples/read-space-age.js"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.2",
+    "typescript": "7.0.2"
+  }
+}
