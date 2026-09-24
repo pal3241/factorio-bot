@@ -186,10 +186,10 @@ function createVirtualBotHandle(client: FactorioBotClient, id: string, network: 
     const patch = await findNearestResource(name, options);
     await goto(patch.position, {
       tolerance: options.approachTolerance ?? 2.5,
-      stepTicks: options.stepTicks,
-      maxSteps: options.maxSteps,
-      tickTimeoutMs: options.tickTimeoutMs,
-      minMovement: options.minMovement
+      ...(options.stepTicks === undefined ? {} : { stepTicks: options.stepTicks }),
+      ...(options.maxSteps === undefined ? {} : { maxSteps: options.maxSteps }),
+      ...(options.tickTimeoutMs === undefined ? {} : { tickTimeoutMs: options.tickTimeoutMs }),
+      ...(options.minMovement === undefined ? {} : { minMovement: options.minMovement })
     });
 
     const current = await state();
@@ -219,17 +219,17 @@ function createVirtualBotHandle(client: FactorioBotClient, id: string, network: 
     if (distance(here, target.position) > 2) {
       await goto(target.position, {
         tolerance: 1.5,
-        stepTicks: options.stepTicks,
-        maxSteps: options.maxSteps,
-        tickTimeoutMs: options.tickTimeoutMs,
-        minMovement: options.minMovement
+        ...(options.stepTicks === undefined ? {} : { stepTicks: options.stepTicks }),
+        ...(options.maxSteps === undefined ? {} : { maxSteps: options.maxSteps }),
+        ...(options.tickTimeoutMs === undefined ? {} : { tickTimeoutMs: options.tickTimeoutMs }),
+        ...(options.minMovement === undefined ? {} : { minMovement: options.minMovement })
       });
     }
 
     const minedState = await mine(target.position, {
-      ticks: options.ticks,
-      wait: options.wait,
-      tickTimeoutMs: options.tickTimeoutMs
+      ...(options.ticks === undefined ? {} : { ticks: options.ticks }),
+      ...(options.wait === undefined ? {} : { wait: options.wait }),
+      ...(options.tickTimeoutMs === undefined ? {} : { tickTimeoutMs: options.tickTimeoutMs })
     });
     return { patch, target, state: minedState };
   };
