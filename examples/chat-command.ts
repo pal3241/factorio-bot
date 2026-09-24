@@ -27,11 +27,11 @@ try {
 
       try {
         await sena.gotoPlayer(chat.player_index, { tolerance: 1.5 });
-        await client.chat.send("Iya, aku ke sini.", { sender: "Sena", force: chat.force });
+        await client.chat.send("Iya, aku ke sini.", { sender: "Sena", ...(chat.force === undefined ? {} : { force: chat.force }) });
       } catch (error) {
         await client.chat.send(
           error instanceof Error ? `Aku tidak bisa ke sana: ${error.message}` : "Aku tidak bisa ke sana.",
-          { sender: "Sena", force: chat.force }
+          { sender: "Sena", ...(chat.force === undefined ? {} : { force: chat.force }) }
         );
       }
     }
