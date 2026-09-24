@@ -1,8 +1,8 @@
-# factorio-bot v0.3.0
+# factorio-bot v0.4.0
 
-SDK TypeScript untuk mengakses **Factorio Bot World Bridge v0.3.0** melalui TCP RCON atau local RCON socket. Client SDK berjalan sebagai proses Node.js; karakter virtual dikelola mod di world Factorio. SDK tidak membuat client multiplayer tiruan.
+SDK TypeScript untuk mengakses **Factorio Bot World Bridge v0.4.0** melalui TCP RCON atau local RCON socket. Client SDK berjalan sebagai proses Node.js; karakter virtual dikelola mod di world Factorio. SDK tidak membuat client multiplayer tiruan.
 
-Memerlukan Node.js 22+ dan mod `factorio-bot-mod` versi 0.2.1 pada save yang sedang dibuka. Fitur Space Age memerlukan DLC/mod Space Age aktif pada save. RCON harus aktif pada server Factorio. RCON memberi hak admin server; bind ke loopback atau jaringan privat yang sudah diamankan. Jangan commit password RCON ke source code.
+Memerlukan Node.js 22+ dan mod `factorio-bot-mod` versi 0.4.0 pada save yang sedang dibuka. Fitur Space Age memerlukan DLC/mod Space Age aktif pada save. RCON harus aktif pada server Factorio. RCON memberi hak admin server; bind ke loopback atau jaringan privat yang sudah diamankan. Jangan commit password RCON ke source code.
 
 ## Memasang
 
@@ -64,6 +64,59 @@ try {
 ```
 
 Semua operasi mengembalikan `ApiResult<T>` dengan `id`, `tick`, `cursor`, serta `data` bertipe. Error bridge dilempar sebagai `FactorioError` dengan `code` dan pesan asli yang bisa ditindaklanjuti. RCON yang putus, timeout, frame rusak, atau JSON yang tidak valid juga ditolak secara eksplisit.
+
+
+## Chat API dan `getLocation()`
+
+SDK v0.4 dapat membaca chat Factorio sebagai stream terstruktur:
+
+```ts
+const capabilities = await bot.capabilities();
+const controller = new AbortController();
+
+for await (const chat of bot.chat.follow(capabilities.cursor, 250, controller.signal)) {
+  console.log(chat.player_name, chat.message, chat.position);
+}
+```
+
+Lokasi player bisa diambil berdasarkan nama atau index:
+
+```ts
+const byName = await bot.world.getLocation("Fahri");
+const byIndex = await bot.world.getLocation(1);
+
+console.log(byName.data.surface, byName.data.position);
+```
+
+High-level virtual bot juga mempunyai `gotoPlayer()`:
+
+```ts
+const sena = bot.attachBot("sena", "main");
+await sena.gotoPlayer("Fahri", { tolerance: 1.5 });
+```
+
+Contoh command chat **"Sena sini"**:
+
+```ts
+const sena = bot.attachBot("sena", "main");
+const start = await bot.capabilities();
+const controller = new AbortController();
+
+for await (const chat of bot.chat.follow(start.cursor, 250, controller.signal)) {
+  if (chat.source !== "player" || chat.player_index === undefined) continue;
+
+  if (chat.message.trim().toLowerCase() === "sena sini") {
+    await sena.gotoPlayer(chat.player_index, { tolerance: 1.5 });
+
+    await bot.chat.send("Iya, aku datang.", {
+      sender: "Sena",
+      ...(chat.force === undefined ? {} : { force: chat.force })
+    });
+  }
+}
+```
+
+`bot.chat.send()` memakai mutation bridge, jadi `fbot-enable-actions` harus aktif. Event chat biasa mempunyai posisi physical player saat pesan dikirim; `gotoPlayer()` memanggil `getLocation()` lagi sehingga menggunakan posisi player terbaru. Jika player dan bot berada di surface berbeda, SDK melempar `UNREACHABLE_TARGET` daripada berpura-pura bisa berjalan antarplanet.
 
 ## Space Age
 
@@ -136,7 +189,7 @@ await miner.mineNearest("iron-ore", {
 console.log(await miner.position());
 ```
 
-Method high-level saat ini: `state()`, `position()`, `findNearestResource()`, `goto()`, `mine()`, `mineNearest()`, `craft()`, `buildGhost()`, dan `stop()`. `attachBot(id)` dapat mengambil handle untuk bot yang sudah terdaftar.
+Method high-level saat ini: `state()`, `position()`, `findNearestResource()`, `goto()`, `gotoPlayer()`, `mine()`, `mineNearest()`, `craft()`, `buildGhost()`, dan `stop()`. `attachBot(id)` dapat mengambil handle untuk bot yang sudah terdaftar.
 
 Navigator v0.3 menggunakan short-step steering delapan arah dengan verifikasi posisi dan obstacle-direction recovery. Ia belum merupakan A*/navmesh penuh; jika semua arah lokal benar-benar buntu, `goto()` melempar `UNREACHABLE_TARGET` daripada men-teleport atau menembus collision.
 
