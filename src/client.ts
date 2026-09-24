@@ -11,7 +11,7 @@ import { RconConnection } from "./rcon.js";
 import { attachVirtualBot, spawnVirtualBot } from "./high-level.js";
 import type { SpawnBotOptions, VirtualBot } from "./high-level.js";
 import type {
-  ApiResult, AreaQuery, Bot, BotCreateResult, BotDetail, BotAction, BotInventoryView, BuildGhostInput, BuildGhostResult, Capabilities, ChatMessage, ChatSendOptions, Chunk, DeltaPage, EventRecord,
+  ApiResult, AreaQuery, Bot, BotCreateResult, BotDetail, BotAction, BotEquipmentResult, BotInventoryView, BuildGhostInput, BuildGhostResult, Capabilities, ChatMessage, ChatSendOptions, Chunk, DeltaPage, EventRecord,
   EntityDetail, EntityQuery, EntitySummary, ElectricNetwork, FactorioClientOptions, ForceQuery, InventoryTransferInput, InventoryTransferResult, ItemDropResult,
   JsonValue, LogisticNetwork, Page, PageQuery, Player, PlayerLocation, PlayerRef, Position, ProductionPage, Recipe, ResearchPage,
   ResourcePage, SharedEntry, SharedWriteOptions, Snapshot, SpaceAgeCapabilities, SpaceAgeSnapshot,
@@ -67,6 +67,8 @@ export interface FactorioBotClient {
     readonly buildGhost: (input: BuildGhostInput) => Promise<ApiResult<BuildGhostResult>>;
     readonly inventory: (id: string) => Promise<ApiResult<BotInventoryView>>;
     readonly transfer: (input: InventoryTransferInput) => Promise<ApiResult<InventoryTransferResult>>;
+    readonly equip: (id: string, name: string, inventory_index: number, count?: number, quality?: string) => Promise<ApiResult<BotEquipmentResult>>;
+    readonly unequip: (id: string, name: string, inventory_index: number, count?: number, quality?: string) => Promise<ApiResult<BotEquipmentResult>>;
     readonly drop: (id: string, name: string, count: number, options?: { readonly quality?: string; readonly inventory_index?: number }) => Promise<ApiResult<ItemDropResult>>;
     readonly pickup: (id: string, ticks: number) => Promise<ApiResult<BotAction>>;
     readonly attack: (id: string, unit_number: number, ticks: number) => Promise<ApiResult<BotAction>>;
@@ -202,6 +204,12 @@ export async function createBot(options: FactorioClientOptions): Promise<Factori
           moved: readNumber(row, "moved", "data")
         };
       }),
+      equip: (id, name, inventory_index, count = 1, quality) => request("bot.equip", {
+        id, name, inventory_index, count, ...(quality === undefined ? {} : { quality })
+      }, value => parseEquipment(value, "data")),
+      unequip: (id, name, inventory_index, count = 1, quality) => request("bot.unequip", {
+        id, name, inventory_index, count, ...(quality === undefined ? {} : { quality })
+      }, value => parseEquipment(value, "data")),
       drop: (id, name, count, options = {}) => request("bot.drop", { id, name, count, ...options }, value => {
         const row = parseObject(value, "data");
         const quality = readOptionalString(row, "quality", "data");
@@ -359,4 +367,17 @@ async function* followChat(
       ...(positionValue === undefined ? {} : { position: parsePosition(positionValue, "chat.message.position") })
     };
   }
+}
+
+
+function parseEquipment(value: JsonValue, path: string): BotEquipmentResult {
+  const row = parseObject(value, path);
+  const quality = readOptionalString(row, "quality", path);
+  return {
+    id: readString(row, "id", path),
+    name: readString(row, "name", path),
+    ...(quality === undefined ? {} : { quality }),
+    inventory_index: readNumber(row, "inventory_index", path),
+    count: readNumber(row, "count", path)
+  };
 }
