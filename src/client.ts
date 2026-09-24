@@ -11,8 +11,8 @@ import { RconConnection } from "./rcon.js";
 import { attachVirtualBot, spawnVirtualBot } from "./high-level.js";
 import type { SpawnBotOptions, VirtualBot } from "./high-level.js";
 import type {
-  ApiResult, AreaQuery, Bot, BotCreateResult, BotDetail, BotAction, BuildGhostInput, BuildGhostResult, Capabilities, ChatMessage, ChatSendOptions, Chunk, DeltaPage, EventRecord,
-  EntityDetail, EntityQuery, EntitySummary, ElectricNetwork, FactorioClientOptions, ForceQuery,
+  ApiResult, AreaQuery, Bot, BotCreateResult, BotDetail, BotAction, BotInventoryView, BuildGhostInput, BuildGhostResult, Capabilities, ChatMessage, ChatSendOptions, Chunk, DeltaPage, EventRecord,
+  EntityDetail, EntityQuery, EntitySummary, ElectricNetwork, FactorioClientOptions, ForceQuery, InventoryTransferInput, InventoryTransferResult, ItemDropResult,
   JsonValue, LogisticNetwork, Page, PageQuery, Player, PlayerLocation, PlayerRef, Position, ProductionPage, Recipe, ResearchPage,
   ResourcePage, SharedEntry, SharedWriteOptions, Snapshot, SpaceAgeCapabilities, SpaceAgeSnapshot,
   SpaceAgeContentPage, SpaceAgeContentQuery, SpaceAgeContentSummary,
@@ -65,6 +65,19 @@ export interface FactorioBotClient {
     readonly craftable: (id: string, recipe: string) => Promise<ApiResult<{ readonly recipe: string; readonly enabled: boolean; readonly count: number }>>;
     readonly craft: (id: string, recipe: string, count: number) => Promise<ApiResult<{ readonly started: number }>>;
     readonly buildGhost: (input: BuildGhostInput) => Promise<ApiResult<BuildGhostResult>>;
+    readonly inventory: (id: string) => Promise<ApiResult<BotInventoryView>>;
+    readonly transfer: (input: InventoryTransferInput) => Promise<ApiResult<InventoryTransferResult>>;
+    readonly drop: (id: string, name: string, count: number, options?: { readonly quality?: string; readonly inventory_index?: number }) => Promise<ApiResult<ItemDropResult>>;
+    readonly pickup: (id: string, ticks: number) => Promise<ApiResult<BotAction>>;
+    readonly attack: (id: string, unit_number: number, ticks: number) => Promise<ApiResult<BotAction>>;
+    readonly repair: (id: string, unit_number: number, ticks: number) => Promise<ApiResult<BotAction>>;
+    readonly place: (id: string, name: string, position: Position, direction?: number) => Promise<ApiResult<EntitySummary>>;
+    readonly rotate: (id: string, unit_number: number, reverse?: boolean) => Promise<ApiResult<EntitySummary>>;
+    readonly enterVehicle: (id: string, unit_number: number) => Promise<ApiResult<EntitySummary>>;
+    readonly leaveVehicle: (id: string) => Promise<ApiResult<EntitySummary>>;
+    readonly drive: (id: string, acceleration: number, direction: number, ticks: number) => Promise<ApiResult<BotAction>>;
+    readonly selectGun: (id: string, index: number) => Promise<ApiResult<{ readonly id: string; readonly selected_gun_index?: number }>>;
+    readonly setRecipe: (id: string, unit_number: number, recipe: string) => Promise<ApiResult<{ readonly id: string; readonly unit_number: number; readonly recipe: string }>>;
   };
   readonly chat: {
     readonly send: (message: string, options?: ChatSendOptions) => Promise<ApiResult<{ readonly sender: string; readonly message: string; readonly force?: string }>>;
@@ -153,7 +166,70 @@ export async function createBot(options: FactorioClientOptions): Promise<Factori
       mine: (id, position, ticks) => request("bot.mine", { id, position, ticks }, value => parseBotAction(value, "data")),
       craftable: (id, recipe) => request("craftable", { id, recipe }, value => parseCraftable(value, "data")),
       craft: (id, recipe, count) => request("bot.craft", { id, recipe, count }, value => parseStarted(value, "data")),
-      buildGhost: input => request("bot.build-ghost", input, value => parseBuildGhost(value, "data"))
+      buildGhost: input => request("bot.build-ghost", input, value => parseBuildGhost(value, "data")),
+      inventory: id => request("bot.inventory", { id }, value => {
+        const row = parseObject(value, "data");
+        const selected = readOptionalNumber(row, "selected_gun_index", "data");
+        const vehicle = readOptionalNumber(row, "vehicle_unit_number", "data");
+        return {
+          id: readString(row, "id", "data"),
+          inventories: readArray(row, "inventories", "data", (entry, path) => {
+            const inventory = parseObject(entry, path);
+            return {
+              index: readNumber(inventory, "index", path),
+              slots: readNumber(inventory, "slots", path),
+              contents: readArray(inventory, "contents", path, parseItem)
+            };
+          }),
+          crafting_queue: readArray(row, "crafting_queue", "data", (entry, path) => parseObject(entry, path)),
+          crafting_progress: readNumber(row, "crafting_progress", "data"),
+          ...(selected === undefined ? {} : { selected_gun_index: selected }),
+          ...(vehicle === undefined ? {} : { vehicle_unit_number: vehicle })
+        };
+      }),
+      transfer: input => request("bot.transfer", input, value => {
+        const row = parseObject(value, "data");
+        const quality = readOptionalString(row, "quality", "data");
+        const direction = readString(row, "direction", "data");
+        if (direction !== "to-entity" && direction !== "from-entity") throw new FactorioError("INVALID_RESPONSE", "data.direction is invalid");
+        return {
+          id: readString(row, "id", "data"),
+          unit_number: readNumber(row, "unit_number", "data"),
+          direction,
+          name: readString(row, "name", "data"),
+          ...(quality === undefined ? {} : { quality }),
+          requested: readNumber(row, "requested", "data"),
+          moved: readNumber(row, "moved", "data")
+        };
+      }),
+      drop: (id, name, count, options = {}) => request("bot.drop", { id, name, count, ...options }, value => {
+        const row = parseObject(value, "data");
+        const quality = readOptionalString(row, "quality", "data");
+        return {
+          id: readString(row, "id", "data"),
+          name: readString(row, "name", "data"),
+          ...(quality === undefined ? {} : { quality }),
+          count: readNumber(row, "count", "data"),
+          spilled: readNumber(row, "spilled", "data")
+        };
+      }),
+      pickup: (id, ticks) => request("bot.pickup", { id, ticks }, value => parseBotAction(value, "data")),
+      attack: (id, unit_number, ticks) => request("bot.attack", { id, unit_number, ticks }, value => parseBotAction(value, "data")),
+      repair: (id, unit_number, ticks) => request("bot.repair", { id, unit_number, ticks }, value => parseBotAction(value, "data")),
+      place: (id, name, position, direction = 0) => request("bot.place", { id, name, position, direction }, value => parseEntity(value, "data")),
+      rotate: (id, unit_number, reverse = false) => request("bot.rotate", { id, unit_number, reverse }, value => parseEntity(value, "data")),
+      enterVehicle: (id, unit_number) => request("bot.enter-vehicle", { id, unit_number }, value => parseEntity(value, "data")),
+      leaveVehicle: id => request("bot.leave-vehicle", { id }, value => parseEntity(value, "data")),
+      drive: (id, acceleration, direction, ticks) => request("bot.drive", { id, acceleration, direction, ticks }, value => parseBotAction(value, "data")),
+      selectGun: (id, index) => request("bot.select-gun", { id, index }, value => {
+        const row = parseObject(value, "data");
+        const selected = readOptionalNumber(row, "selected_gun_index", "data");
+        return { id: readString(row, "id", "data"), ...(selected === undefined ? {} : { selected_gun_index: selected }) };
+      }),
+      setRecipe: (id, unit_number, recipe) => request("bot.set-recipe", { id, unit_number, recipe }, value => {
+        const row = parseObject(value, "data");
+        return { id: readString(row, "id", "data"), unit_number: readNumber(row, "unit_number", "data"), recipe: readString(row, "recipe", "data") };
+      })
     },
     chat: {
       send: (message, options = {}) => request("chat.send", { message, ...options }, value => {
