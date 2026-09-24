@@ -274,6 +274,27 @@ export interface SpaceAgeSnapshotQuery {
   readonly force: string;
 }
 
+export type SpaceAgeContentCategory =
+  | "items" | "fluids" | "entities" | "recipes" | "technologies" | "qualities"
+  | "tiles" | "space-locations" | "space-connections";
+
+export interface SpaceAgeContentQuery extends PageQuery {
+  readonly category: SpaceAgeContentCategory;
+}
+
+export interface SpaceAgeContentPage {
+  readonly category: SpaceAgeContentCategory;
+  readonly page: Page<JsonObject>;
+}
+
+export interface SpaceAgeContentSummary {
+  readonly expansion_active: boolean;
+  readonly quality_active: boolean;
+  readonly elevated_rails_active: boolean;
+  readonly counts: Readonly<Record<string, number>>;
+}
+
+
 export interface TerrainTile {
   readonly position: Position;
   readonly name: string;
