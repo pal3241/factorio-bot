@@ -35,6 +35,8 @@ export class FactoBot extends EventEmitter {
 
   private readonly abortController = new AbortController();
   private readonly eventPollIntervalMs: number;
+  private ridingAcceleration: Readonly<Record<string, number>> = {};
+  private ridingDirection: Readonly<Record<string, number>> = {};
   private eventTask: Promise<void> | undefined;
   private closed = false;
 
@@ -52,6 +54,8 @@ export class FactoBot extends EventEmitter {
       this.refreshState(),
       this.refreshPlayers()
     ]);
+    this.ridingAcceleration = capabilities.data.enums["riding_acceleration"] ?? {};
+    this.ridingDirection = capabilities.data.enums["riding_direction"] ?? {};
     this.eventTask = this.consumeEvents(capabilities.cursor);
     setTimeout(() => this.emit("spawn"), 0);
   }
@@ -235,8 +239,13 @@ export class FactoBot extends EventEmitter {
   }
 
   async moveVehicle(left: -1 | 0 | 1, forward: -1 | 0 | 1, options?: ActionWaitOptions): Promise<void> {
-    const acceleration = forward > 0 ? 1 : forward < 0 ? 3 : 0;
-    const direction = left > 0 ? 0 : left < 0 ? 2 : 1;
+    const accelerationName = forward > 0 ? "accelerating" : forward < 0 ? "reversing" : "nothing";
+    const directionName = left > 0 ? "left" : left < 0 ? "right" : "straight";
+    const acceleration = this.ridingAcceleration[accelerationName];
+    const direction = this.ridingDirection[directionName];
+    if (acceleration === undefined || direction === undefined) {
+      throw new Error("Factorio riding enums are unavailable from bridge capabilities");
+    }
     await this.drive(acceleration, direction, options);
   }
 
