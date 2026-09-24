@@ -1,0 +1,13 @@
+.wy-side-nav-search {
+  padding-top: 0.9rem;
+  padding-bottom: 0.9rem;
+}
+
+.wy-side-nav-search > a {
+  font-size: 1.35rem;
+  font-weight: 700;
+}
+
+.rst-content .highlight {
+  border-radius: 4px;
+}
