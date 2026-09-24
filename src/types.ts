@@ -529,6 +529,14 @@ export interface ItemDropResult {
   readonly spilled: number;
 }
 
+export interface BotEquipmentResult {
+  readonly id: string;
+  readonly name: string;
+  readonly quality?: string;
+  readonly inventory_index: number;
+  readonly count: number;
+}
+
 export interface Bot {
   readonly id: string;
   readonly network: string;
