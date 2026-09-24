@@ -1,7 +1,7 @@
 {
   "name": "factorio-bot",
-  "version": "0.4.0",
-  "description": "Typed TypeScript client for direct GUI-hosted Factorio worlds, virtual bots, chat/player APIs, and Space Age world/content sensors.",
+  "version": "0.5.0",
+  "description": "Typed TypeScript client for direct GUI-hosted Factorio worlds, Mineflayer-inspired virtual bots, plugins/events, extended actions, chat/player APIs, and Space Age sensors.",
   "license": "UNLICENSED",
   "type": "module",
   "engines": {"node": ">=22.0.0"},
