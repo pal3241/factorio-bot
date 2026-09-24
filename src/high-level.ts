@@ -1,7 +1,7 @@
 import { FactorioError } from "./errors.js";
 import type { FactorioBotClient } from "./client.js";
 import type {
-  ApiResult, BotDetail, BotInventoryView, BuildGhostResult, EntitySummary, InventoryTransferResult, ItemDropResult, PlayerLocation, PlayerRef, Position, ResourcePatch
+  ApiResult, BotDetail, BotEquipmentResult, BotInventoryView, BuildGhostResult, EntitySummary, InventoryTransferResult, ItemDropResult, PlayerLocation, PlayerRef, Position, ResourcePatch
 } from "./types.js";
 
 export interface SpawnBotOptions {
@@ -68,6 +68,8 @@ export interface VirtualBot {
   readonly countItem: (name: string, quality?: string) => Promise<number>;
   readonly transferTo: (unitNumber: number, name: string, count: number, options?: { readonly quality?: string; readonly botInventoryIndex?: number; readonly targetInventoryIndex?: number }) => Promise<InventoryTransferResult>;
   readonly transferFrom: (unitNumber: number, name: string, count: number, options?: { readonly quality?: string; readonly botInventoryIndex?: number; readonly targetInventoryIndex?: number }) => Promise<InventoryTransferResult>;
+  readonly equip: (name: string, inventoryIndex: number, count?: number, quality?: string) => Promise<BotEquipmentResult>;
+  readonly unequip: (name: string, inventoryIndex: number, count?: number, quality?: string) => Promise<BotEquipmentResult>;
   readonly drop: (name: string, count: number, options?: { readonly quality?: string; readonly inventoryIndex?: number }) => Promise<ItemDropResult>;
   readonly pickup: (options?: ActionWaitOptions) => Promise<void>;
   readonly attack: (target: EntitySummary | number, options?: ActionWaitOptions) => Promise<void>;
@@ -380,6 +382,12 @@ function createVirtualBotHandle(client: FactorioBotClient, id: string, network: 
     return result.data;
   };
 
+  const equip = async (name: string, inventoryIndex: number, count = 1, quality?: string): Promise<BotEquipmentResult> =>
+    (await client.bots.equip(id, nonEmpty(name, "name"), positiveInteger(inventoryIndex, "inventoryIndex"), positiveInteger(count, "count"), quality)).data;
+
+  const unequip = async (name: string, inventoryIndex: number, count = 1, quality?: string): Promise<BotEquipmentResult> =>
+    (await client.bots.unequip(id, nonEmpty(name, "name"), positiveInteger(inventoryIndex, "inventoryIndex"), positiveInteger(count, "count"), quality)).data;
+
   const drop = async (
     name: string,
     count: number,
@@ -460,7 +468,7 @@ function createVirtualBotHandle(client: FactorioBotClient, id: string, network: 
 
   return {
     id, network, state, position, findNearestResource, nearestEntity, goto, gotoPlayer, followPlayer,
-    mine, mineNearest, craft, inventory, countItem, transferTo, transferFrom, drop, pickup, attack, repair,
+    mine, mineNearest, craft, inventory, countItem, transferTo, transferFrom, equip, unequip, drop, pickup, attack, repair,
     place, rotate, enterVehicle, leaveVehicle, drive, selectGun, setRecipe, chat, buildGhost, stop
   };
 }
