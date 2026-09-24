@@ -453,6 +453,35 @@ export interface Player {
   readonly character?: EntitySummary;
 }
 
+export type PlayerRef = string | number;
+
+export interface PlayerLocation {
+  readonly player_index: number;
+  readonly name: string;
+  readonly connected: boolean;
+  readonly force: string;
+  readonly surface: string;
+  readonly position: Position;
+}
+
+export interface ChatMessage {
+  readonly sequence: number;
+  readonly tick: number;
+  readonly message: string;
+  readonly source: "player" | "server";
+  readonly player_index?: number;
+  readonly player_name?: string;
+  readonly connected?: boolean;
+  readonly force?: string;
+  readonly surface?: string;
+  readonly position?: Position;
+}
+
+export interface ChatSendOptions {
+  readonly sender?: string;
+  readonly force?: string;
+}
+
 export interface BotAction {
   readonly kind: "walk" | "mine";
   readonly direction?: number;
