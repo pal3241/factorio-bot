@@ -43,9 +43,13 @@ export class RconConnection {
   }
 
   static async connect(options: FactorioClientOptions): Promise<RconConnection> {
-    if (options.host.length === 0) throw new FactorioError("INVALID_ARGUMENT", "RCON host must be a nonempty hostname or address");
-    if (!Number.isInteger(options.port) || options.port < 1 || options.port > 65_535) {
-      throw new FactorioError("INVALID_ARGUMENT", "RCON port must be an integer between 1 and 65535");
+    if ("socket_path" in options) {
+      if (options.socket_path.length === 0) throw new FactorioError("INVALID_ARGUMENT", "RCON socket_path must be nonempty");
+    } else {
+      if (options.host.length === 0) throw new FactorioError("INVALID_ARGUMENT", "RCON host must be a nonempty hostname or address");
+      if (!Number.isInteger(options.port) || options.port < 1 || options.port > 65_535) {
+        throw new FactorioError("INVALID_ARGUMENT", "RCON port must be an integer between 1 and 65535");
+      }
     }
     if (options.password.length === 0) throw new FactorioError("INVALID_ARGUMENT", "RCON password must not be empty");
     if (!Number.isInteger(options.connect_timeout_ms) || options.connect_timeout_ms < 1) {
@@ -54,7 +58,9 @@ export class RconConnection {
     if (!Number.isInteger(options.request_timeout_ms) || options.request_timeout_ms < 1) {
       throw new FactorioError("INVALID_ARGUMENT", "request_timeout_ms must be a positive integer");
     }
-    const socket = createConnection({ host: options.host, port: options.port });
+    const socket = "socket_path" in options
+      ? createConnection({ path: options.socket_path })
+      : createConnection({ host: options.host, port: options.port });
     socket.setNoDelay(true);
     const connection = new RconConnection(socket, options);
     try {
@@ -175,14 +181,16 @@ export class RconConnection {
   private async awaitConnect(): Promise<void> {
     if (this.failure) throw this.failure;
     await new Promise<void>((resolve, reject) => {
-      const timer = setTimeout(() => reject(new FactorioError("RCON_TIMEOUT", `connection to ${this.options.host}:${this.options.port} timed out after ${this.options.connect_timeout_ms} ms`)), this.options.connect_timeout_ms);
+      const endpoint = "socket_path" in this.options ? this.options.socket_path : `${this.options.host}:${this.options.port}`;
+      const timer = setTimeout(() => reject(new FactorioError("RCON_TIMEOUT", `connection to ${endpoint} timed out after ${this.options.connect_timeout_ms} ms`)), this.options.connect_timeout_ms);
       this.socket.once("connect", () => {
         clearTimeout(timer);
         resolve();
       });
       this.socket.once("error", (error: Error) => {
         clearTimeout(timer);
-        reject(new FactorioError("RCON_CLOSED", `could not connect to ${this.options.host}:${this.options.port}: ${error.message}`));
+        const endpoint = "socket_path" in this.options ? this.options.socket_path : `${this.options.host}:${this.options.port}`;
+        reject(new FactorioError("RCON_CLOSED", `could not connect to ${endpoint}: ${error.message}`));
       });
     });
   }
