@@ -106,6 +106,40 @@ for (const patch of page.data.items) {
 
 Koleksi kosong pada jawaban Factorio dikodekan `{}`. SDK mengubahnya menjadi `[]` hanya saat field tersebut memang didefinisikan sebagai array. Angka resource adalah observasi pada area query. Satisfaction listrik ditandai tidak tersedia oleh mod; SDK tidak menghitung rasio perkiraan sebagai satisfaction.
 
+
+## High-level API ala Mineflayer
+
+SDK v0.3 juga menyediakan handle bot tingkat tinggi di atas primitive world bridge:
+
+```ts
+const miner = await bot.spawnBot({
+  id: "miner-1",
+  network: "main",
+  surface: "nauvis",
+  force: "player",
+  position: { x: 0, y: 0 }
+});
+
+const iron = await miner.findNearestResource("iron-ore", {
+  maxDistance: 192
+});
+
+await miner.goto(iron.position, {
+  tolerance: 2.5
+});
+
+await miner.mineNearest("iron-ore", {
+  maxDistance: 32,
+  ticks: 180
+});
+
+console.log(await miner.position());
+```
+
+Method high-level saat ini: `state()`, `position()`, `findNearestResource()`, `goto()`, `mine()`, `mineNearest()`, `craft()`, `buildGhost()`, dan `stop()`. `attachBot(id)` dapat mengambil handle untuk bot yang sudah terdaftar.
+
+Navigator v0.3 menggunakan short-step steering delapan arah dengan verifikasi posisi dan obstacle-direction recovery. Ia belum merupakan A*/navmesh penuh; jika semua arah lokal benar-benar buntu, `goto()` melempar `UNREACHABLE_TARGET` daripada men-teleport atau menembus collision.
+
 ## Virtual bot dan event
 
 ```ts
