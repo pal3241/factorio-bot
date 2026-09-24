@@ -1,8 +1,8 @@
-# factorio-bot v0.4.0
+# factorio-bot v0.5.0
 
-SDK TypeScript untuk mengakses **Factorio Bot World Bridge v0.4.0** melalui TCP RCON atau local RCON socket. Client SDK berjalan sebagai proses Node.js; karakter virtual dikelola mod di world Factorio. SDK tidak membuat client multiplayer tiruan.
+SDK TypeScript untuk mengakses **Factorio Bot World Bridge v0.5.0** melalui TCP RCON atau local RCON socket. Client SDK berjalan sebagai proses Node.js; karakter virtual dikelola mod di world Factorio. SDK tidak membuat client multiplayer tiruan.
 
-Memerlukan Node.js 22+ dan mod `factorio-bot-mod` versi 0.4.0 pada save yang sedang dibuka. Fitur Space Age memerlukan DLC/mod Space Age aktif pada save. RCON harus aktif pada server Factorio. RCON memberi hak admin server; bind ke loopback atau jaringan privat yang sudah diamankan. Jangan commit password RCON ke source code.
+Memerlukan Node.js 22+ dan mod `factorio-bot-mod` versi 0.5.0 pada save yang sedang dibuka. Fitur Space Age memerlukan DLC/mod Space Age aktif pada save. RCON harus aktif pada server Factorio. RCON memberi hak admin server; bind ke loopback atau jaringan privat yang sudah diamankan. Jangan commit password RCON ke source code.
 
 ## Memasang
 
@@ -13,6 +13,56 @@ npm run build
 
 Package menggunakan ESM dan mengekspor JavaScript, declaration types, serta RCON connector. Typecheck dan build memakai TypeScript strict. Timeout dan tujuan koneksi dinyatakan eksplisit; SDK tidak mencoba host/port atau password alternatif.
 
+
+
+## FactoBot: façade ala Mineflayer
+
+Untuk API yang lebih dekat ke Mineflayer, gunakan `createFactoBot()`:
+
+```ts
+import { createFactoBot } from "factorio-bot";
+
+const bot = await createFactoBot({
+  host: "127.0.0.1",
+  port: 27015,
+  password: process.env["FACTORIO_RCON_PASSWORD"]!,
+  connect_timeout_ms: 5000,
+  request_timeout_ms: 15000,
+  id: "sena",
+  network: "main",
+  surface: "nauvis",
+  force: "player",
+  position: { x: 0, y: 0 },
+  attach: true
+});
+
+bot.on("chat", (username, message) => {
+  console.log(username, message);
+});
+
+await bot.loadPlugin(async bot => {
+  bot.on("death", () => console.log("bot died"));
+});
+
+const enemy = await bot.nearestEntity(entity => entity.force === "enemy");
+if (enemy) await bot.attack(enemy);
+
+await bot.chat("Halo dari FactoBot");
+```
+
+API inti yang tersedia pada façade:
+
+- **World/entity:** `bot.entity`, `bot.entities`, `bot.players`, `nearestEntity()`, `findEntity()`, `entityAt()`, `tileAt()`, `blockAt()`.
+- **Movement:** `goto()`, `gotoPlayer()`, `follow()`, `waitForTicks()`.
+- **Inventory/equipment:** `inventory()`, `countItem()`, `equip()`, `unequip()`, `toss()`, `pickup()`.
+- **Container:** `openContainer()`, `openChest()`, `openFurnace()`, `deposit()`, `withdraw()`.
+- **Craft/build/mine:** `craft()`, `dig()`, `collect()`, `place()`, `placeBlock()`, `rotate()`, `setRecipe()`.
+- **Combat/repair:** `attack()`, `repair()`, weapon selection melalui `bot.controller.selectGun()`.
+- **Vehicle:** `mount()`, `dismount()`, `moveVehicle()`, `drive()`.
+- **Chat/events/plugins:** `chat()`, `on()`, `once()`, `loadPlugin()`, `quit()`, `end()`.
+- **Factorio-native:** electric networks, logistics, production, research, trains, pollution/threats, resource patches, planets, space platforms, qualities, dan Space Age content catalog tetap tersedia di `bot.client`.
+
+Beberapa nama Mineflayer sengaja dipertahankan sebagai alias (`dig`, `placeBlock`, `mount`, `dismount`, `moveVehicle`, `openChest`, `supportFeature`). Fitur Minecraft yang tidak mempunyai konsep setara seperti bed/sleep, enchantment table, villager trade, fishing, elytra, signs/books, resource packs, dan scoreboards tidak dipalsukan. Gunakan `supportFeature(name)` untuk mengecek fitur façade.
 
 ## Direct ke world GUI tanpa headless
 
@@ -68,7 +118,7 @@ Semua operasi mengembalikan `ApiResult<T>` dengan `id`, `tick`, `cursor`, serta 
 
 ## Chat API dan `getLocation()`
 
-SDK v0.4 dapat membaca chat Factorio sebagai stream terstruktur:
+SDK v0.5 dapat membaca chat Factorio sebagai stream terstruktur:
 
 ```ts
 const capabilities = await bot.capabilities();
@@ -162,7 +212,7 @@ Koleksi kosong pada jawaban Factorio dikodekan `{}`. SDK mengubahnya menjadi `[]
 
 ## High-level API ala Mineflayer
 
-SDK v0.3 juga menyediakan handle bot tingkat tinggi di atas primitive world bridge:
+SDK v0.5 juga menyediakan handle bot tingkat tinggi di atas primitive world bridge:
 
 ```ts
 const miner = await bot.spawnBot({
@@ -189,9 +239,9 @@ await miner.mineNearest("iron-ore", {
 console.log(await miner.position());
 ```
 
-Method high-level saat ini: `state()`, `position()`, `findNearestResource()`, `goto()`, `gotoPlayer()`, `mine()`, `mineNearest()`, `craft()`, `buildGhost()`, dan `stop()`. `attachBot(id)` dapat mengambil handle untuk bot yang sudah terdaftar.
+Method high-level sekarang juga mencakup `nearestEntity()`, `followPlayer()`, inventory transfer, equip/unequip, drop/pickup, attack/repair, placement/rotation, vehicle control, gun selection, machine recipe control, chat, `buildGhost()`, dan `stop()`. `attachBot(id)` dapat mengambil handle untuk bot yang sudah terdaftar.
 
-Navigator v0.3 menggunakan short-step steering delapan arah dengan verifikasi posisi dan obstacle-direction recovery. Ia belum merupakan A*/navmesh penuh; jika semua arah lokal benar-benar buntu, `goto()` melempar `UNREACHABLE_TARGET` daripada men-teleport atau menembus collision.
+Navigator v0.5 menggunakan short-step steering delapan arah dengan verifikasi posisi dan obstacle-direction recovery. Ia belum merupakan A*/navmesh penuh; jika semua arah lokal benar-benar buntu, `goto()` melempar `UNREACHABLE_TARGET` daripada men-teleport atau menembus collision.
 
 ## Virtual bot dan event
 
