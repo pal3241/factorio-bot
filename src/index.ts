@@ -6,7 +6,8 @@ export type {
   EntityQuery, EntitySummary, EventRecord, FactorioClientOptions, FactorioErrorCode,
   ForceQuery, Inventory, ItemStack, JsonObject, JsonValue, LogisticNetwork, Page, PageQuery, Player,
   Position, ProductionPage, ProductionRecord, Recipe, ResearchPage, ResearchTechnology, ResourcePage,
-  ResourcePatch, SharedEntry, SharedWriteOptions, Snapshot, Surface, SpaceAgeCapabilities, SpaceAgeEntityDetail, SpaceAgeSnapshot,
+  ResourcePatch, SharedEntry, SharedWriteOptions, Snapshot, Surface, SpaceAgeCapabilities, SpaceAgeContentCategory,
+  SpaceAgeContentPage, SpaceAgeContentQuery, SpaceAgeContentSummary, SpaceAgeEntityDetail, SpaceAgeSnapshot,
   SpaceAsteroidChunk, SpaceConnection, SpaceLocation, SpacePlatform, SpacePlatformDetailQuery,
   SpacePlatformQuery, SpacePlanet, SpaceSurface, SpaceAgeSnapshotQuery, TerrainPage, TerrainTile, Threat,
   ThreatPage, Train, Unsubscribe, WatchOptions, WatchResult, WatchTopic
