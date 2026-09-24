@@ -4,6 +4,20 @@ SDK TypeScript untuk mengakses **Factorio Bot World Bridge v0.5.0** melalui TCP 
 
 Memerlukan Node.js 22+ dan mod `factorio-bot-mod` versi 0.5.0 pada save yang sedang dibuka. Fitur Space Age memerlukan DLC/mod Space Age aktif pada save. RCON harus aktif pada server Factorio. RCON memberi hak admin server; bind ke loopback atau jaringan privat yang sudah diamankan. Jangan commit password RCON ke source code.
 
+## Dokumentasi
+
+Mulai dari **[docs/README.md](docs/README.md)**.
+
+Panduan utama:
+- [Getting Started](docs/getting-started.md)
+- [FactoBot API](docs/factobot-api.md)
+- [Events & Plugins](docs/events-plugins.md)
+- [Low-level API](docs/low-level-api.md)
+- [Space Age](docs/space-age.md)
+- [Architecture](docs/architecture.md)
+- [Troubleshooting](docs/troubleshooting.md)
+- [Mineflayer parity](docs/mineflayer-parity.md)
+
 ## Memasang
 
 ```powershell
