@@ -112,6 +112,10 @@ export class FactoBot extends EventEmitter {
     return this.nearestEntity(matcher, maxDistance);
   }
 
+  async blockAt(position: Position): Promise<TerrainTile | undefined> {
+    return this.tileAt(position);
+  }
+
   async tileAt(position: Position): Promise<TerrainTile | undefined> {
     const state = await this.controller.state();
     const page = await this.client.world.terrain({
@@ -176,6 +180,10 @@ export class FactoBot extends EventEmitter {
     return this.controller.place(name, position, direction);
   }
 
+  async placeBlock(name: string, position: Position, direction = 0): Promise<EntitySummary> {
+    return this.place(name, position, direction);
+  }
+
   async toss(name: string, count: number): Promise<void> {
     await this.controller.drop(name, count);
   }
@@ -197,16 +205,38 @@ export class FactoBot extends EventEmitter {
     return new FactoContainer(this, entity);
   }
 
+  async openChest(entity: EntitySummary): Promise<FactoContainer> {
+    return this.openContainer(entity);
+  }
+
+  async openFurnace(entity: EntitySummary): Promise<FactoContainer> {
+    return this.openContainer(entity);
+  }
+
   async enterVehicle(entity: EntitySummary): Promise<void> {
     await this.controller.enterVehicle(entity);
+  }
+
+  async mount(entity: EntitySummary): Promise<void> {
+    await this.enterVehicle(entity);
   }
 
   async leaveVehicle(): Promise<void> {
     await this.controller.leaveVehicle();
   }
 
+  async dismount(): Promise<void> {
+    await this.leaveVehicle();
+  }
+
   async drive(acceleration: number, direction: number, options?: ActionWaitOptions): Promise<void> {
     await this.controller.drive(acceleration, direction, options);
+  }
+
+  async moveVehicle(left: -1 | 0 | 1, forward: -1 | 0 | 1, options?: ActionWaitOptions): Promise<void> {
+    const acceleration = forward > 0 ? 1 : forward < 0 ? 3 : 0;
+    const direction = left > 0 ? 0 : left < 0 ? 2 : 1;
+    await this.drive(acceleration, direction, options);
   }
 
   async rotate(entity: EntitySummary, reverse = false): Promise<void> {
@@ -223,6 +253,19 @@ export class FactoBot extends EventEmitter {
 
   async countItem(name: string, quality?: string): Promise<number> {
     return this.controller.countItem(name, quality);
+  }
+
+  supportFeature(name: string): boolean {
+    return new Set([
+      "chat", "entities", "players", "inventory", "equip", "unequip", "toss", "dig",
+      "placeBlock", "attack", "mount", "dismount", "moveVehicle", "craft", "openContainer",
+      "openChest", "openFurnace", "plugins", "events", "nearestEntity", "blockAt",
+      "factorio-electric", "factorio-logistics", "factorio-production", "factorio-research", "space-age"
+    ]).has(name);
+  }
+
+  supportsFeature(name: string): boolean {
+    return this.supportFeature(name);
   }
 
   async waitForTicks(ticks: number): Promise<void> {
