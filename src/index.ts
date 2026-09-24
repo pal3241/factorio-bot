@@ -1,10 +1,10 @@
 export { createBot } from "./client.js";
 export { FactorioError } from "./errors.js";
 export type {
-  ApiResult, AreaQuery, BoundingBox, Bot, BotAction, BotCreateResult, BotDetail, BridgeErrorCode,
+  ApiResult, AreaQuery, BoundingBox, Bot, BotAction, BotCreateResult, BotDetail, BridgeErrorCode, ChatMessage, ChatSendOptions,
   BuildGhostInput, BuildGhostResult, Capabilities, CapabilityLimits, Chunk, DeltaPage, ElectricMeasurement, ElectricNetwork, EntityDetail,
   EntityQuery, EntitySummary, EventRecord, FactorioClientOptions, FactorioErrorCode,
-  ForceQuery, Inventory, ItemStack, JsonObject, JsonValue, LogisticNetwork, Page, PageQuery, Player,
+  ForceQuery, Inventory, ItemStack, JsonObject, JsonValue, LogisticNetwork, Page, PageQuery, Player, PlayerLocation, PlayerRef,
   Position, ProductionPage, ProductionRecord, Recipe, ResearchPage, ResearchTechnology, ResourcePage,
   ResourcePatch, SharedEntry, SharedWriteOptions, Snapshot, Surface, SpaceAgeCapabilities, SpaceAgeContentCategory,
   SpaceAgeContentPage, SpaceAgeContentQuery, SpaceAgeContentSummary, SpaceAgeEntityDetail, SpaceAgeSnapshot,
