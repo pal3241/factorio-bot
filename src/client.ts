@@ -8,6 +8,8 @@ import {
 } from "./models.js";
 import { parseObject, readArray, readBoolean, readNumber, readObject, readPage, readString } from "./codec.js";
 import { RconConnection } from "./rcon.js";
+import { attachVirtualBot, spawnVirtualBot } from "./high-level.js";
+import type { SpawnBotOptions, VirtualBot } from "./high-level.js";
 import type {
   ApiResult, AreaQuery, Bot, BotCreateResult, BotDetail, BotAction, BuildGhostInput, BuildGhostResult, Capabilities, Chunk, DeltaPage, EventRecord,
   EntityDetail, EntityQuery, EntitySummary, ElectricNetwork, FactorioClientOptions, ForceQuery,
@@ -20,6 +22,8 @@ import type {
 
 export interface FactorioBotClient {
   readonly capabilities: () => Promise<ApiResult<Capabilities>>;
+  readonly spawnBot: (options: SpawnBotOptions) => Promise<VirtualBot>;
+  readonly attachBot: (id: string, network?: string) => VirtualBot;
   readonly world: {
     readonly snapshot: (query: AreaQuery) => Promise<ApiResult<Snapshot>>;
     readonly surfaces: (query: PageQuery) => Promise<ApiResult<Page<Surface>>>;
@@ -84,6 +88,8 @@ export async function createBot(options: FactorioClientOptions): Promise<Factori
   const readId = (value: JsonValue): { readonly id: string } => ({ id: readString(dataObject(value), "id", "data") });
   const client: FactorioBotClient = {
     capabilities: () => request("capabilities", {}, value => parseCapabilities(value, "data")),
+    spawnBot: options => spawnVirtualBot(client, options),
+    attachBot: (id, network) => attachVirtualBot(client, id, network),
     world: {
       snapshot: query => request("snapshot", query, value => parseSnapshot(value, "data")),
       surfaces: query => request("surfaces", query, value => page(value, parseSurface)),
