@@ -243,9 +243,17 @@ export function parseTrain(value: JsonValue, path: string): Train {
 
 export function parseBotAction(value: JsonValue, path: string): BotAction {
   const row = parseObject(value, path); const kind = readString(row, "kind", path);
-  if (kind !== "walk" && kind !== "mine") throw new FactorioError("INVALID_RESPONSE", `${path}.kind is invalid`);
-  const direction = readOptionalNumber(row, "direction", path); const position = row["position"];
-  return { kind, until_tick: readNumber(row, "until_tick", path), ...(direction === undefined ? {} : { direction }),
+  if (kind !== "walk" && kind !== "mine" && kind !== "pickup" && kind !== "attack" && kind !== "repair" && kind !== "drive") {
+    throw new FactorioError("INVALID_RESPONSE", `${path}.kind is invalid`);
+  }
+  const direction = readOptionalNumber(row, "direction", path);
+  const unit = readOptionalNumber(row, "unit_number", path);
+  const acceleration = readOptionalNumber(row, "acceleration", path);
+  const position = row["position"];
+  return { kind, until_tick: readNumber(row, "until_tick", path),
+    ...(direction === undefined ? {} : { direction }),
+    ...(unit === undefined ? {} : { unit_number: unit }),
+    ...(acceleration === undefined ? {} : { acceleration }),
     ...(position === undefined ? {} : { position: parsePosition(position, `${path}.position`) }) };
 }
 
