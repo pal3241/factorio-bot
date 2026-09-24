@@ -13,3 +13,6 @@ export type {
   ThreatPage, Train, Unsubscribe, WatchOptions, WatchResult, WatchTopic
 } from "./types.js";
 export type { FactorioBotClient } from "./client.js";
+
+export { attachVirtualBot, spawnVirtualBot } from "./high-level.js";
+export type { FindNearestResourceOptions, GotoOptions, MineNearestOptions, MineOptions, SpawnBotOptions, VirtualBot } from "./high-level.js";
