@@ -535,13 +535,14 @@ export interface Snapshot {
   readonly trains: Page<Train>;
 }
 
-export interface FactorioClientOptions {
-  readonly host: string;
-  readonly port: number;
+export type FactorioClientOptions = {
   readonly password: string;
   readonly connect_timeout_ms: number;
   readonly request_timeout_ms: number;
-}
+} & (
+  | { readonly socket_path: string; readonly host?: never; readonly port?: never }
+  | { readonly socket_path?: never; readonly host: string; readonly port: number }
+);
 
 export interface WatchOptions<Q> {
   readonly id: string;
