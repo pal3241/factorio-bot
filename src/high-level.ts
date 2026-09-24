@@ -163,6 +163,28 @@ function createVirtualBotHandle(client: FactorioBotClient, id: string, network: 
     return best;
   };
 
+  const nearestEntity = async (options: FindEntityOptions = {}): Promise<EntitySummary | undefined> => {
+    const current = await state();
+    const origin = current.data.entity.position;
+    const radius = positive(options.maxDistance ?? 32, "maxDistance");
+    if (radius > 64) throw new FactorioError("INVALID_ARGUMENT", "nearestEntity maxDistance must be <= 64");
+    const result = await client.world.entities({
+      surface: current.data.entity.surface,
+      force: current.data.entity.force,
+      area: {
+        left_top: { x: origin.x - radius, y: origin.y - radius },
+        right_bottom: { x: origin.x + radius, y: origin.y + radius }
+      },
+      offset: 0,
+      limit: 256
+    });
+    return result.data.items
+      .filter(entity => entity.unit_number !== current.data.entity.unit_number)
+      .filter(entity => options.matcher ? options.matcher(entity) : true)
+      .filter(entity => distance(origin, entity.position) <= radius)
+      .sort((a, b) => distance(origin, a.position) - distance(origin, b.position))[0];
+  };
+
   const goto = async (target: Position, options: GotoOptions = {}): Promise<Position> => {
     finitePosition(target, "target");
     const tolerance = nonNegative(options.tolerance ?? 0.8, "tolerance");
@@ -217,6 +239,27 @@ function createVirtualBotHandle(client: FactorioBotClient, id: string, network: 
     }
     await goto(location.data.position, options);
     return location.data;
+  };
+
+  const followPlayer = async (player: PlayerRef, signal: AbortSignal, options: FollowPlayerOptions = {}): Promise<void> => {
+    const followDistance = positive(options.distance ?? 3, "distance");
+    const intervalMs = positiveInteger(options.intervalMs ?? 750, "intervalMs");
+    while (!signal.aborted) {
+      const [location, current] = await Promise.all([client.world.getLocation(player), state()]);
+      if (location.data.surface !== current.data.entity.surface) {
+        throw new FactorioError("UNREACHABLE_TARGET", `player ${location.data.name} is on surface ${location.data.surface}, but bot ${id} is on ${current.data.entity.surface}`);
+      }
+      if (distance(location.data.position, current.data.entity.position) > followDistance) {
+        await goto(location.data.position, {
+          tolerance: followDistance,
+          ...(options.stepTicks === undefined ? {} : { stepTicks: options.stepTicks }),
+          ...(options.maxSteps === undefined ? {} : { maxSteps: options.maxSteps }),
+          ...(options.tickTimeoutMs === undefined ? {} : { tickTimeoutMs: options.tickTimeoutMs }),
+          ...(options.minMovement === undefined ? {} : { minMovement: options.minMovement })
+        });
+      }
+      if (!signal.aborted) await sleep(intervalMs);
+    }
   };
 
   const mine = async (target: Position, options: MineOptions = {}): Promise<ApiResult<BotDetail>> => {
@@ -286,6 +329,125 @@ function createVirtualBotHandle(client: FactorioBotClient, id: string, network: 
     return result.data.started;
   };
 
+  const inventory = async (): Promise<BotInventoryView> => (await client.bots.inventory(id)).data;
+
+  const countItem = async (name: string, quality?: string): Promise<number> => {
+    const view = await inventory();
+    let count = 0;
+    for (const inv of view.inventories) {
+      for (const stack of inv.contents) {
+        if (stack.name === name && (quality === undefined || stack.quality === quality)) count += stack.count;
+      }
+    }
+    return count;
+  };
+
+  const transferTo = async (
+    unitNumber: number,
+    name: string,
+    count: number,
+    options: { readonly quality?: string; readonly botInventoryIndex?: number; readonly targetInventoryIndex?: number } = {}
+  ): Promise<InventoryTransferResult> => {
+    const result = await client.bots.transfer({
+      id,
+      unit_number: positiveInteger(unitNumber, "unitNumber"),
+      direction: "to-entity",
+      name: nonEmpty(name, "name"),
+      count: positiveInteger(count, "count"),
+      ...(options.quality === undefined ? {} : { quality: options.quality }),
+      ...(options.botInventoryIndex === undefined ? {} : { bot_inventory_index: options.botInventoryIndex }),
+      ...(options.targetInventoryIndex === undefined ? {} : { target_inventory_index: options.targetInventoryIndex })
+    });
+    return result.data;
+  };
+
+  const transferFrom = async (
+    unitNumber: number,
+    name: string,
+    count: number,
+    options: { readonly quality?: string; readonly botInventoryIndex?: number; readonly targetInventoryIndex?: number } = {}
+  ): Promise<InventoryTransferResult> => {
+    const result = await client.bots.transfer({
+      id,
+      unit_number: positiveInteger(unitNumber, "unitNumber"),
+      direction: "from-entity",
+      name: nonEmpty(name, "name"),
+      count: positiveInteger(count, "count"),
+      ...(options.quality === undefined ? {} : { quality: options.quality }),
+      ...(options.botInventoryIndex === undefined ? {} : { bot_inventory_index: options.botInventoryIndex }),
+      ...(options.targetInventoryIndex === undefined ? {} : { target_inventory_index: options.targetInventoryIndex })
+    });
+    return result.data;
+  };
+
+  const drop = async (
+    name: string,
+    count: number,
+    options: { readonly quality?: string; readonly inventoryIndex?: number } = {}
+  ): Promise<ItemDropResult> => {
+    const result = await client.bots.drop(id, nonEmpty(name, "name"), positiveInteger(count, "count"), {
+      ...(options.quality === undefined ? {} : { quality: options.quality }),
+      ...(options.inventoryIndex === undefined ? {} : { inventory_index: options.inventoryIndex })
+    });
+    return result.data;
+  };
+
+  const waitAction = async (action: Promise<ApiResult<{ readonly until_tick: number }>>, options: ActionWaitOptions): Promise<void> => {
+    const result = await action;
+    if (options.wait ?? true) {
+      await waitForTick(client, id, result.data.until_tick, positiveInteger(options.tickTimeoutMs ?? 12000, "tickTimeoutMs"));
+    }
+  };
+
+  const pickup = async (options: ActionWaitOptions = {}): Promise<void> => {
+    await waitAction(client.bots.pickup(id, boundedInteger(options.ticks ?? 60, "ticks", 1, 600)), options);
+  };
+
+  const attack = async (target: EntitySummary | number, options: ActionWaitOptions = {}): Promise<void> => {
+    await waitAction(client.bots.attack(id, unitOf(target), boundedInteger(options.ticks ?? 120, "ticks", 1, 600)), options);
+  };
+
+  const repair = async (target: EntitySummary | number, options: ActionWaitOptions = {}): Promise<void> => {
+    await waitAction(client.bots.repair(id, unitOf(target), boundedInteger(options.ticks ?? 120, "ticks", 1, 600)), options);
+  };
+
+  const place = async (name: string, target: Position, direction = 0): Promise<EntitySummary> => {
+    finitePosition(target, "position");
+    return (await client.bots.place(id, nonEmpty(name, "name"), target, boundedInteger(direction, "direction", 0, 15))).data;
+  };
+
+  const rotate = async (target: EntitySummary | number, reverse = false): Promise<EntitySummary> =>
+    (await client.bots.rotate(id, unitOf(target), reverse)).data;
+
+  const enterVehicle = async (target: EntitySummary | number): Promise<EntitySummary> =>
+    (await client.bots.enterVehicle(id, unitOf(target))).data;
+
+  const leaveVehicle = async (): Promise<EntitySummary> => (await client.bots.leaveVehicle(id)).data;
+
+  const drive = async (acceleration: number, direction: number, options: ActionWaitOptions = {}): Promise<void> => {
+    await waitAction(
+      client.bots.drive(
+        id,
+        boundedInteger(acceleration, "acceleration", 0, 3),
+        boundedInteger(direction, "direction", 0, 2),
+        boundedInteger(options.ticks ?? 60, "ticks", 1, 600)
+      ),
+      options
+    );
+  };
+
+  const selectGun = async (index: number): Promise<number | undefined> =>
+    (await client.bots.selectGun(id, positiveInteger(index, "index"))).data.selected_gun_index;
+
+  const setRecipe = async (target: EntitySummary | number, recipe: string): Promise<void> => {
+    await client.bots.setRecipe(id, unitOf(target), nonEmpty(recipe, "recipe"));
+  };
+
+  const chat = async (message: string): Promise<void> => {
+    const current = await state();
+    await client.chat.send(nonEmpty(message, "message"), { sender: id, force: current.data.entity.force });
+  };
+
   const buildGhost = async (name: string, target: Position, direction = 0): Promise<BuildGhostResult> => {
     finitePosition(target, "position");
     const result = await client.bots.buildGhost({ id, name: nonEmpty(name, "name"), position: target, direction: boundedInteger(direction, "direction", 0, 15) });
@@ -296,7 +458,11 @@ function createVirtualBotHandle(client: FactorioBotClient, id: string, network: 
     await client.bots.stop(id);
   };
 
-  return { id, network, state, position, findNearestResource, goto, gotoPlayer, mine, mineNearest, craft, buildGhost, stop };
+  return {
+    id, network, state, position, findNearestResource, nearestEntity, goto, gotoPlayer, followPlayer,
+    mine, mineNearest, craft, inventory, countItem, transferTo, transferFrom, drop, pickup, attack, repair,
+    place, rotate, enterVehicle, leaveVehicle, drive, selectGun, setRecipe, chat, buildGhost, stop
+  };
 }
 
 async function waitForTick(client: FactorioBotClient, id: string, targetTick: number, timeoutMs: number): Promise<ApiResult<BotDetail>> {
@@ -330,6 +496,12 @@ function directionCandidates(preferred: number): readonly number[] {
 
 function distance(a: Position, b: Position): number {
   return Math.hypot(a.x - b.x, a.y - b.y);
+}
+
+function unitOf(target: EntitySummary | number): number {
+  if (typeof target === "number") return positiveInteger(target, "unit_number");
+  if (target.unit_number === undefined) throw new FactorioError("INVALID_ARGUMENT", "target entity has no unit_number");
+  return positiveInteger(target.unit_number, "unit_number");
 }
 
 function finitePosition(value: Position, name: string): void {
