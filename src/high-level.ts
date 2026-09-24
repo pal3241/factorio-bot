@@ -1,7 +1,7 @@
 import { FactorioError } from "./errors.js";
 import type { FactorioBotClient } from "./client.js";
 import type {
-  ApiResult, BotDetail, BuildGhostResult, EntitySummary, PlayerLocation, PlayerRef, Position, ResourcePatch
+  ApiResult, BotDetail, BotInventoryView, BuildGhostResult, EntitySummary, InventoryTransferResult, ItemDropResult, PlayerLocation, PlayerRef, Position, ResourcePatch
 } from "./types.js";
 
 export interface SpawnBotOptions {
@@ -35,17 +35,51 @@ export interface MineNearestOptions extends FindNearestResourceOptions, GotoOpti
   readonly approachTolerance?: number;
 }
 
+export interface FindEntityOptions {
+  readonly maxDistance?: number;
+  readonly matcher?: (entity: EntitySummary) => boolean;
+}
+
+export interface ActionWaitOptions {
+  readonly ticks?: number;
+  readonly wait?: boolean;
+  readonly tickTimeoutMs?: number;
+}
+
+export interface FollowPlayerOptions extends GotoOptions {
+  readonly distance?: number;
+  readonly intervalMs?: number;
+}
+
 export interface VirtualBot {
   readonly id: string;
   readonly network: string;
   readonly state: () => Promise<ApiResult<BotDetail>>;
   readonly position: () => Promise<Position>;
   readonly findNearestResource: (name: string, options?: FindNearestResourceOptions) => Promise<ResourcePatch>;
+  readonly nearestEntity: (options?: FindEntityOptions) => Promise<EntitySummary | undefined>;
   readonly goto: (target: Position, options?: GotoOptions) => Promise<Position>;
   readonly gotoPlayer: (player: PlayerRef, options?: GotoOptions) => Promise<PlayerLocation>;
+  readonly followPlayer: (player: PlayerRef, signal: AbortSignal, options?: FollowPlayerOptions) => Promise<void>;
   readonly mine: (target: Position, options?: MineOptions) => Promise<ApiResult<BotDetail>>;
   readonly mineNearest: (name: string, options?: MineNearestOptions) => Promise<{ readonly patch: ResourcePatch; readonly target: EntitySummary; readonly state: ApiResult<BotDetail> }>;
   readonly craft: (recipe: string, count?: number) => Promise<number>;
+  readonly inventory: () => Promise<BotInventoryView>;
+  readonly countItem: (name: string, quality?: string) => Promise<number>;
+  readonly transferTo: (unitNumber: number, name: string, count: number, options?: { readonly quality?: string; readonly botInventoryIndex?: number; readonly targetInventoryIndex?: number }) => Promise<InventoryTransferResult>;
+  readonly transferFrom: (unitNumber: number, name: string, count: number, options?: { readonly quality?: string; readonly botInventoryIndex?: number; readonly targetInventoryIndex?: number }) => Promise<InventoryTransferResult>;
+  readonly drop: (name: string, count: number, options?: { readonly quality?: string; readonly inventoryIndex?: number }) => Promise<ItemDropResult>;
+  readonly pickup: (options?: ActionWaitOptions) => Promise<void>;
+  readonly attack: (target: EntitySummary | number, options?: ActionWaitOptions) => Promise<void>;
+  readonly repair: (target: EntitySummary | number, options?: ActionWaitOptions) => Promise<void>;
+  readonly place: (name: string, position: Position, direction?: number) => Promise<EntitySummary>;
+  readonly rotate: (target: EntitySummary | number, reverse?: boolean) => Promise<EntitySummary>;
+  readonly enterVehicle: (target: EntitySummary | number) => Promise<EntitySummary>;
+  readonly leaveVehicle: () => Promise<EntitySummary>;
+  readonly drive: (acceleration: number, direction: number, options?: ActionWaitOptions) => Promise<void>;
+  readonly selectGun: (index: number) => Promise<number | undefined>;
+  readonly setRecipe: (target: EntitySummary | number, recipe: string) => Promise<void>;
+  readonly chat: (message: string) => Promise<void>;
   readonly buildGhost: (name: string, position: Position, direction?: number) => Promise<BuildGhostResult>;
   readonly stop: () => Promise<void>;
 }
