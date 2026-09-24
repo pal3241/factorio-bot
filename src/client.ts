@@ -6,14 +6,14 @@ import {
   parseSnapshot, parseStarted, parseSurface, parseTerrain, parseThreatPage, parseTrain, parseWatch,
   parseSpaceAgeCapabilities, parseSpaceAgeSnapshot, parseSpacePlanet, parseSpaceLocation, parseSpaceConnection, parseSpacePlatform
 } from "./models.js";
-import { parseObject, readArray, readBoolean, readNumber, readObject, readPage, readString } from "./codec.js";
+import { parseObject, parsePosition, readArray, readBoolean, readNumber, readObject, readOptionalNumber, readOptionalString, readPage, readString } from "./codec.js";
 import { RconConnection } from "./rcon.js";
 import { attachVirtualBot, spawnVirtualBot } from "./high-level.js";
 import type { SpawnBotOptions, VirtualBot } from "./high-level.js";
 import type {
-  ApiResult, AreaQuery, Bot, BotCreateResult, BotDetail, BotAction, BuildGhostInput, BuildGhostResult, Capabilities, Chunk, DeltaPage, EventRecord,
+  ApiResult, AreaQuery, Bot, BotCreateResult, BotDetail, BotAction, BuildGhostInput, BuildGhostResult, Capabilities, ChatMessage, ChatSendOptions, Chunk, DeltaPage, EventRecord,
   EntityDetail, EntityQuery, EntitySummary, ElectricNetwork, FactorioClientOptions, ForceQuery,
-  JsonValue, LogisticNetwork, Page, PageQuery, Player, Position, ProductionPage, Recipe, ResearchPage,
+  JsonValue, LogisticNetwork, Page, PageQuery, Player, PlayerLocation, PlayerRef, Position, ProductionPage, Recipe, ResearchPage,
   ResourcePage, SharedEntry, SharedWriteOptions, Snapshot, SpaceAgeCapabilities, SpaceAgeSnapshot,
   SpaceAgeContentPage, SpaceAgeContentQuery, SpaceAgeContentSummary,
   SpacePlatformDetailQuery, SpacePlatformQuery, SpaceAgeSnapshotQuery, Surface, TerrainPage, ThreatPage, Train,
@@ -40,6 +40,8 @@ export interface FactorioBotClient {
     readonly recipes: (query: ForceQuery) => Promise<ApiResult<Page<Recipe>>>;
     readonly threats: (query: AreaQuery) => Promise<ApiResult<ThreatPage>>;
     readonly players: (query: PageQuery) => Promise<ApiResult<Page<Player>>>;
+    readonly player: (player: PlayerRef) => Promise<ApiResult<Player>>;
+    readonly getLocation: (player: PlayerRef) => Promise<ApiResult<PlayerLocation>>;
   };
   readonly spaceAge: {
     readonly capabilities: () => Promise<ApiResult<SpaceAgeCapabilities>>;
@@ -63,6 +65,10 @@ export interface FactorioBotClient {
     readonly craftable: (id: string, recipe: string) => Promise<ApiResult<{ readonly recipe: string; readonly enabled: boolean; readonly count: number }>>;
     readonly craft: (id: string, recipe: string, count: number) => Promise<ApiResult<{ readonly started: number }>>;
     readonly buildGhost: (input: BuildGhostInput) => Promise<ApiResult<BuildGhostResult>>;
+  };
+  readonly chat: {
+    readonly send: (message: string, options?: ChatSendOptions) => Promise<ApiResult<{ readonly sender: string; readonly message: string; readonly force?: string }>>;
+    readonly follow: (after: number, poll_interval_ms: number, signal: AbortSignal) => AsyncGenerator<ChatMessage, void, void>;
   };
   readonly shared: {
     readonly list: (network: string, query: PageQuery) => Promise<ApiResult<Page<SharedEntry>>>;
@@ -105,7 +111,9 @@ export async function createBot(options: FactorioClientOptions): Promise<Factori
       research: query => request("research", query, value => parseResearchPage(value, "data")),
       recipes: query => request("recipes", query, value => page(value, parseRecipe)),
       threats: query => request("threats", query, value => parseThreatPage(value, "data")),
-      players: query => request("players", query, value => page(value, parsePlayer))
+      players: query => request("players", query, value => page(value, parsePlayer)),
+      player: player => request("player", playerRefParams(player), value => parsePlayer(value, "data")),
+      getLocation: player => request("getlocation", playerRefParams(player), value => parsePlayerLocation(value, "data"))
     },
     spaceAge: {
       capabilities: () => request("space-age.capabilities", {}, value => parseSpaceAgeCapabilities(value, "data"), 2),
@@ -146,6 +154,14 @@ export async function createBot(options: FactorioClientOptions): Promise<Factori
       craftable: (id, recipe) => request("craftable", { id, recipe }, value => parseCraftable(value, "data")),
       craft: (id, recipe, count) => request("bot.craft", { id, recipe, count }, value => parseStarted(value, "data")),
       buildGhost: input => request("bot.build-ghost", input, value => parseBuildGhost(value, "data"))
+    },
+    chat: {
+      send: (message, options = {}) => request("chat.send", { message, ...options }, value => {
+        const row = parseObject(value, "data");
+        const force = readOptionalString(row, "force", "data");
+        return { sender: readString(row, "sender", "data"), message: readString(row, "message", "data"), ...(force === undefined ? {} : { force }) };
+      }),
+      follow: (after, poll_interval_ms, signal) => followChat(request, after, poll_interval_ms, signal)
     },
     shared: {
       list: (network, query) => request("shared", { ...query, network }, value => page(value, parseSharedEntry)),
@@ -209,4 +225,62 @@ function delay(milliseconds: number, signal: AbortSignal): Promise<void> {
 
 function abortError(signal: AbortSignal): Error {
   return signal.reason instanceof Error ? signal.reason : new Error("Factorio event polling was aborted");
+}
+
+
+function playerRefParams(player: PlayerRef): { readonly name: string } | { readonly player_index: number } {
+  if (typeof player === "string") {
+    if (player.length === 0) throw new FactorioError("INVALID_ARGUMENT", "player name must not be empty");
+    return { name: player };
+  }
+  if (!Number.isInteger(player) || player < 1) throw new FactorioError("INVALID_ARGUMENT", "player index must be a positive integer");
+  return { player_index: player };
+}
+
+function parsePlayerLocation(value: JsonValue, path: string): PlayerLocation {
+  const row = parseObject(value, path);
+  const position = row["position"];
+  if (position === undefined) throw new FactorioError("INVALID_RESPONSE", `${path}.position is required`);
+  return {
+    player_index: readNumber(row, "player_index", path),
+    name: readString(row, "name", path),
+    connected: readBoolean(row, "connected", path),
+    force: readString(row, "force", path),
+    surface: readString(row, "surface", path),
+    position: parsePosition(position, `${path}.position`)
+  };
+}
+
+async function* followChat(
+  request: <T>(method: string, params: object, parse: (value: JsonValue) => T) => Promise<ApiResult<T>>,
+  after: number,
+  pollIntervalMs: number,
+  signal: AbortSignal
+): AsyncGenerator<ChatMessage, void, void> {
+  for await (const event of followEvents(request, after, pollIntervalMs, signal)) {
+    if (event.kind !== "chat.message") continue;
+    const row = event.data;
+    const source = readString(row, "source", "chat.message");
+    if (source !== "player" && source !== "server") {
+      throw new FactorioError("INVALID_RESPONSE", "chat.message.source must be player or server");
+    }
+    const positionValue = row["position"];
+    const playerIndex = readOptionalNumber(row, "player_index", "chat.message");
+    const playerName = readOptionalString(row, "player_name", "chat.message");
+    const force = readOptionalString(row, "force", "chat.message");
+    const surface = readOptionalString(row, "surface", "chat.message");
+    const connected = row["connected"] === undefined ? undefined : readBoolean(row, "connected", "chat.message");
+    yield {
+      sequence: event.sequence,
+      tick: event.tick,
+      message: readString(row, "message", "chat.message"),
+      source,
+      ...(playerIndex === undefined ? {} : { player_index: playerIndex }),
+      ...(playerName === undefined ? {} : { player_name: playerName }),
+      ...(connected === undefined ? {} : { connected }),
+      ...(force === undefined ? {} : { force }),
+      ...(surface === undefined ? {} : { surface }),
+      ...(positionValue === undefined ? {} : { position: parsePosition(positionValue, "chat.message.position") })
+    };
+  }
 }
