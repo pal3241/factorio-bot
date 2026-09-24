@@ -29,6 +29,8 @@ const bot = await createFactoBot({
   attach: true
 });
 
+bot.on("error", error => console.error("FactoBot error:", error));
+
 await bot.loadPlugin(autoDefense);
 
 bot.on("spawn", () => {
