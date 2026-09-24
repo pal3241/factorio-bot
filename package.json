@@ -1,7 +1,7 @@
 {
   "name": "factorio-bot",
-  "version": "0.2.1",
-  "description": "Typed TypeScript client for the Factorio Bot World Bridge mod and Space Age sensors.",
+  "version": "0.3.0",
+  "description": "Typed TypeScript client for direct GUI-hosted Factorio worlds, virtual bots, and Space Age world/content sensors.",
   "license": "UNLICENSED",
   "type": "module",
   "engines": {"node": ">=22.0.0"},
