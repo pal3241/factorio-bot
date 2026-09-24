@@ -1,7 +1,7 @@
 import { FactorioError } from "./errors.js";
 import type { FactorioBotClient } from "./client.js";
 import type {
-  ApiResult, BotDetail, BuildGhostResult, EntitySummary, Position, ResourcePatch
+  ApiResult, BotDetail, BuildGhostResult, EntitySummary, PlayerLocation, PlayerRef, Position, ResourcePatch
 } from "./types.js";
 
 export interface SpawnBotOptions {
@@ -42,6 +42,7 @@ export interface VirtualBot {
   readonly position: () => Promise<Position>;
   readonly findNearestResource: (name: string, options?: FindNearestResourceOptions) => Promise<ResourcePatch>;
   readonly goto: (target: Position, options?: GotoOptions) => Promise<Position>;
+  readonly gotoPlayer: (player: PlayerRef, options?: GotoOptions) => Promise<PlayerLocation>;
   readonly mine: (target: Position, options?: MineOptions) => Promise<ApiResult<BotDetail>>;
   readonly mineNearest: (name: string, options?: MineNearestOptions) => Promise<{ readonly patch: ResourcePatch; readonly target: EntitySummary; readonly state: ApiResult<BotDetail> }>;
   readonly craft: (recipe: string, count?: number) => Promise<number>;
@@ -172,6 +173,18 @@ function createVirtualBotHandle(client: FactorioBotClient, id: string, network: 
     throw new FactorioError("UNREACHABLE_TARGET", `bot ${id} exceeded maxSteps while moving to target`);
   };
 
+  const gotoPlayer = async (player: PlayerRef, options: GotoOptions = {}): Promise<PlayerLocation> => {
+    const [location, current] = await Promise.all([client.world.getLocation(player), state()]);
+    if (location.data.surface !== current.data.entity.surface) {
+      throw new FactorioError(
+        "UNREACHABLE_TARGET",
+        `player ${location.data.name} is on surface ${location.data.surface}, but bot ${id} is on ${current.data.entity.surface}`
+      );
+    }
+    await goto(location.data.position, options);
+    return location.data;
+  };
+
   const mine = async (target: Position, options: MineOptions = {}): Promise<ApiResult<BotDetail>> => {
     finitePosition(target, "target");
     const ticks = boundedInteger(options.ticks ?? 180, "ticks", 1, 600);
@@ -249,7 +262,7 @@ function createVirtualBotHandle(client: FactorioBotClient, id: string, network: 
     await client.bots.stop(id);
   };
 
-  return { id, network, state, position, findNearestResource, goto, mine, mineNearest, craft, buildGhost, stop };
+  return { id, network, state, position, findNearestResource, goto, gotoPlayer, mine, mineNearest, craft, buildGhost, stop };
 }
 
 async function waitForTick(client: FactorioBotClient, id: string, targetTick: number, timeoutMs: number): Promise<ApiResult<BotDetail>> {
