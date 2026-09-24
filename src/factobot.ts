@@ -6,7 +6,7 @@ import type {
 } from "./high-level.js";
 import type {
   BotDetail, ChatMessage, EntityDetail, EntitySummary, FactorioClientOptions, Player, PlayerRef,
-  Position, ResourcePatch
+  Inventory, InventoryTransferResult, Position, ResourcePatch, TerrainTile
 } from "./types.js";
 
 export type FactoBotPlugin = (bot: FactoBot) => void | Promise<void>;
@@ -96,12 +96,35 @@ export class FactoBot extends EventEmitter {
     return this.entities;
   }
 
+  async inventory() {
+    return this.controller.inventory();
+  }
+
   async nearestEntity(matcher?: (entity: EntitySummary) => boolean, maxDistance = 32): Promise<EntitySummary | undefined> {
     const options: FindEntityOptions = {
       maxDistance,
       ...(matcher === undefined ? {} : { matcher })
     };
     return this.controller.nearestEntity(options);
+  }
+
+  async findEntity(matcher?: (entity: EntitySummary) => boolean, maxDistance = 32): Promise<EntitySummary | undefined> {
+    return this.nearestEntity(matcher, maxDistance);
+  }
+
+  async tileAt(position: Position): Promise<TerrainTile | undefined> {
+    const state = await this.controller.state();
+    const page = await this.client.world.terrain({
+      surface: state.data.entity.surface,
+      force: state.data.entity.force,
+      area: {
+        left_top: { x: Math.floor(position.x), y: Math.floor(position.y) },
+        right_bottom: { x: Math.floor(position.x) + 1, y: Math.floor(position.y) + 1 }
+      },
+      offset: 0,
+      limit: 1
+    });
+    return page.data.items[0];
   }
 
   async entityAt(unitNumber: number): Promise<EntityDetail | undefined> {
@@ -155,6 +178,43 @@ export class FactoBot extends EventEmitter {
 
   async toss(name: string, count: number): Promise<void> {
     await this.controller.drop(name, count);
+  }
+
+  async pickup(options?: ActionWaitOptions): Promise<void> {
+    await this.controller.pickup(options);
+  }
+
+  async equip(name: string, inventoryIndex: number, count = 1, quality?: string): Promise<void> {
+    await this.controller.equip(name, inventoryIndex, count, quality);
+  }
+
+  async unequip(name: string, inventoryIndex: number, count = 1, quality?: string): Promise<void> {
+    await this.controller.unequip(name, inventoryIndex, count, quality);
+  }
+
+  async openContainer(entity: EntitySummary): Promise<FactoContainer> {
+    if (entity.unit_number === undefined) throw new Error("container entity has no unit_number");
+    return new FactoContainer(this, entity);
+  }
+
+  async enterVehicle(entity: EntitySummary): Promise<void> {
+    await this.controller.enterVehicle(entity);
+  }
+
+  async leaveVehicle(): Promise<void> {
+    await this.controller.leaveVehicle();
+  }
+
+  async drive(acceleration: number, direction: number, options?: ActionWaitOptions): Promise<void> {
+    await this.controller.drive(acceleration, direction, options);
+  }
+
+  async rotate(entity: EntitySummary, reverse = false): Promise<void> {
+    await this.controller.rotate(entity, reverse);
+  }
+
+  async setRecipe(entity: EntitySummary, recipe: string): Promise<void> {
+    await this.controller.setRecipe(entity, recipe);
   }
 
   async craft(recipe: string, count = 1): Promise<number> {
@@ -238,6 +298,44 @@ export class FactoBot extends EventEmitter {
     } catch (error) {
       if (!this.abortController.signal.aborted) this.emit("error", error);
     }
+  }
+}
+
+
+export class FactoContainer {
+  readonly bot: FactoBot;
+  readonly entity: EntitySummary;
+
+  constructor(bot: FactoBot, entity: EntitySummary) {
+    if (entity.unit_number === undefined) throw new Error("container entity has no unit_number");
+    this.bot = bot;
+    this.entity = entity;
+  }
+
+  async inventories(): Promise<readonly Inventory[]> {
+    const detail = await this.bot.entityAt(this.entity.unit_number!);
+    if (!detail) return [];
+    return detail.inventories;
+  }
+
+  async deposit(
+    name: string,
+    count: number,
+    options: { readonly quality?: string; readonly botInventoryIndex?: number; readonly targetInventoryIndex?: number } = {}
+  ): Promise<InventoryTransferResult> {
+    return this.bot.controller.transferTo(this.entity.unit_number!, name, count, options);
+  }
+
+  async withdraw(
+    name: string,
+    count: number,
+    options: { readonly quality?: string; readonly botInventoryIndex?: number; readonly targetInventoryIndex?: number } = {}
+  ): Promise<InventoryTransferResult> {
+    return this.bot.controller.transferFrom(this.entity.unit_number!, name, count, options);
+  }
+
+  close(): void {
+    // Virtual characters have no GUI window to close; handle is stateless.
   }
 }
 
