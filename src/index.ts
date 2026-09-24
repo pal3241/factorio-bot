@@ -17,5 +17,5 @@ export type { FactorioBotClient } from "./client.js";
 export { attachVirtualBot, spawnVirtualBot } from "./high-level.js";
 export type { ActionWaitOptions, FindEntityOptions, FindNearestResourceOptions, FollowPlayerOptions, GotoOptions, MineNearestOptions, MineOptions, SpawnBotOptions, VirtualBot } from "./high-level.js";
 
-export { FactoBot, createFactoBot } from "./factobot.js";
+export { FactoBot, FactoContainer, createFactoBot } from "./factobot.js";
 export type { CreateFactoBotOptions, FactoBotPlugin } from "./factobot.js";
