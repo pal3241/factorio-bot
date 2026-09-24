@@ -1,6 +1,6 @@
-# factorio-bot v0.2.1
+# factorio-bot v0.3.0
 
-SDK TypeScript untuk mengakses **Factorio Bot World Bridge v0.2.1** melalui TCP RCON. Client SDK berjalan sebagai proses Node.js; karakter virtual dikelola mod di server Factorio. SDK tidak membuat client multiplayer tiruan.
+SDK TypeScript untuk mengakses **Factorio Bot World Bridge v0.3.0** melalui TCP RCON atau local RCON socket. Client SDK berjalan sebagai proses Node.js; karakter virtual dikelola mod di world Factorio. SDK tidak membuat client multiplayer tiruan.
 
 Memerlukan Node.js 22+ dan mod `factorio-bot-mod` versi 0.2.1 pada save yang sedang dibuka. Fitur Space Age memerlukan DLC/mod Space Age aktif pada save. RCON harus aktif pada server Factorio. RCON memberi hak admin server; bind ke loopback atau jaringan privat yang sudah diamankan. Jangan commit password RCON ke source code.
 
@@ -12,6 +12,24 @@ npm run build
 ```
 
 Package menggunakan ESM dan mengekspor JavaScript, declaration types, serta RCON connector. Typecheck dan build memakai TypeScript strict. Timeout dan tujuan koneksi dinyatakan eksplisit; SDK tidak mencoba host/port atau password alternatif.
+
+
+## Direct ke world GUI tanpa headless
+
+Dengan local RCON socket, SDK terhubung ke instance Factorio desktop yang sedang kamu mainkan:
+
+```ts
+import { createBot } from "factorio-bot";
+
+const bot = await createBot({
+  socket_path: process.env.FACTORIO_LOCAL_RCON_SOCKET!,
+  password: process.env.FACTORIO_RCON_PASSWORD!,
+  connect_timeout_ms: 5000,
+  request_timeout_ms: 15000
+});
+```
+
+Tidak ada process Factorio headless kedua. TCP RCON tetap tersedia sebagai fallback untuk dedicated server/LAN.
 
 ## Membaca snapshot
 
@@ -66,7 +84,7 @@ console.log(space.data.platforms.items.map(platform => ({
 })));
 ```
 
-`bot.spaceAge` menyediakan `planets`, `locations`, `connections`, `platforms`, dan `platform`. Semua method hanya membaca. `world.surfaces` lintas planet/platform; `world.entity` menyertakan context Space Age cargo pod, silo roket, hub/landing pad, dan asteroid collector. Event `space-age.invalidated` mengarahkan SDK membaca ulang scope yang berubah. Dukungan adapter mod pihak ketiga direncanakan untuk v0.3.
+`bot.spaceAge` menyediakan `planets`, `locations`, `connections`, `platforms`, `platform`, `contentSummary`, dan `content`. Catalog runtime dapat membaca item, fluid, entity, recipe, technology, quality, tile, space location, dan space connection dari prototype yang benar-benar aktif pada save. Semua method hanya membaca. `world.surfaces` lintas planet/platform; `world.entity` menyertakan context Space Age cargo pod, silo roket, hub/landing pad, dan asteroid collector. Event `space-age.invalidated` mengarahkan SDK membaca ulang scope yang berubah. Dukungan adapter mod pihak ketiga direncanakan untuk v0.3.
 
 ## Query terarah dan pagination
 
@@ -131,3 +149,18 @@ npm run example
 ```
 
 Contoh berada di [`examples/read-world.ts`](examples/read-world.ts). Implementasi connector dan parsers runtime ada di `src/`; schema/API authority tetap pada `factorio-bot-mod` v1. SDK tidak mengakses `remote` secara langsung dan tidak memanggil Lua bebas.
+
+
+## Catalog konten Space Age
+
+```ts
+const summary = await bot.spaceAge.contentSummary();
+console.log(summary.data.counts);
+
+const tech = await bot.spaceAge.content({
+  category: "technologies",
+  offset: 0,
+  limit: 128
+});
+console.log(tech.data.page.items);
+```
