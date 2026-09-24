@@ -1,5 +1,6 @@
 import { EventEmitter } from "node:events";
 import { createBot, type FactorioBotClient } from "./client.js";
+import { parseEntity } from "./models.js";
 import type {
   ActionWaitOptions, FindEntityOptions, FollowPlayerOptions, GotoOptions, MineNearestOptions,
   MineOptions, SpawnBotOptions, VirtualBot
@@ -309,7 +310,25 @@ export class FactoBot extends EventEmitter {
         }
 
         if (event.kind === "entity.invalidated") {
-          this.emit("entityChanged", event.data);
+          const raw = event.data["entity"];
+          if (raw !== undefined) {
+            try {
+              const changed = parseEntity(raw, "event.data.entity");
+              if (changed.unit_number !== undefined) this.entities.set(changed.unit_number, changed);
+              if (this.entity?.unit_number !== undefined && changed.unit_number === this.entity.unit_number) {
+                const oldHealth = this.health;
+                this.entity = changed;
+                this.health = changed.health;
+                this.maxHealth = changed.max_health;
+                if (oldHealth !== this.health) this.emit("health", this.health, this.maxHealth);
+              }
+              this.emit("entityChanged", changed);
+            } catch {
+              this.emit("entityChanged", event.data);
+            }
+          } else {
+            this.emit("entityChanged", event.data);
+          }
           continue;
         }
 
