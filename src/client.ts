@@ -13,6 +13,7 @@ import type {
   EntityDetail, EntityQuery, EntitySummary, ElectricNetwork, FactorioClientOptions, ForceQuery,
   JsonValue, LogisticNetwork, Page, PageQuery, Player, Position, ProductionPage, Recipe, ResearchPage,
   ResourcePage, SharedEntry, SharedWriteOptions, Snapshot, SpaceAgeCapabilities, SpaceAgeSnapshot,
+  SpaceAgeContentPage, SpaceAgeContentQuery, SpaceAgeContentSummary,
   SpacePlatformDetailQuery, SpacePlatformQuery, SpaceAgeSnapshotQuery, Surface, TerrainPage, ThreatPage, Train,
   WatchOptions, WatchResult, WatchTopic
 } from "./types.js";
@@ -44,6 +45,8 @@ export interface FactorioBotClient {
     readonly connections: (query: PageQuery) => Promise<ApiResult<Page<SpaceAgeSnapshot["space_connections"]["items"][number]>>>;
     readonly platforms: (query: SpacePlatformQuery) => Promise<ApiResult<Page<SpaceAgeSnapshot["platforms"]["items"][number]>>>;
     readonly platform: (query: SpacePlatformDetailQuery) => Promise<ApiResult<SpaceAgeSnapshot["platforms"]["items"][number]>>;
+    readonly contentSummary: () => Promise<ApiResult<SpaceAgeContentSummary>>;
+    readonly content: (query: SpaceAgeContentQuery) => Promise<ApiResult<SpaceAgeContentPage>>;
   };
   readonly bots: {
     readonly list: (query: PageQuery) => Promise<ApiResult<Page<Bot>>>;
@@ -105,7 +108,26 @@ export async function createBot(options: FactorioClientOptions): Promise<Factori
       locations: query => request("space-age.locations", query, value => page(value, parseSpaceLocation), 2),
       connections: query => request("space-age.connections", query, value => page(value, parseSpaceConnection), 2),
       platforms: query => request("space-age.platforms", query, value => page(value, parseSpacePlatform), 2),
-      platform: query => request("space-age.platform", query, value => parseSpacePlatform(value, "data"), 2)
+      platform: query => request("space-age.platform", query, value => parseSpacePlatform(value, "data"), 2),
+      contentSummary: () => request("space-age.content-summary", {}, value => {
+        const row = parseObject(value, "data");
+        return {
+          expansion_active: readBoolean(row, "expansion_active", "data"),
+          quality_active: readBoolean(row, "quality_active", "data"),
+          elevated_rails_active: readBoolean(row, "elevated_rails_active", "data"),
+          counts: Object.fromEntries(Object.entries(readObject(row, "counts", "data")).map(([key, raw]) => {
+            if (typeof raw !== "number" || !Number.isFinite(raw)) throw new FactorioError("INVALID_RESPONSE", `data.counts.${key} must be a finite number`);
+            return [key, raw];
+          }))
+        };
+      }, 2),
+      content: query => request("space-age.content", query, value => {
+        const row = parseObject(value, "data");
+        const category = readString(row, "category", "data");
+        const pageValue = row["page"];
+        if (pageValue === undefined) throw new FactorioError("INVALID_RESPONSE", "data.page is required");
+        return { category: category as SpaceAgeContentQuery["category"], page: readPage(pageValue, "data.page", (item, path) => parseObject(item, path)) };
+      }, 2)
     },
     bots: {
       list: query => request("bots", query, value => page(value, parseBot)),
