@@ -1,11 +1,11 @@
 import { createBot } from "factorio-bot";
 
-const password = process.env.FACTORIO_RCON_PASSWORD;
+const password = process.env['FACTORIO_RCON_PASSWORD'];
 if (!password) throw new Error("Set FACTORIO_RCON_PASSWORD");
 
 const client = await createBot({
-  host: process.env.FACTORIO_RCON_HOST ?? "127.0.0.1",
-  port: Number(process.env.FACTORIO_RCON_PORT ?? "27015"),
+  host: process.env['FACTORIO_RCON_HOST'] ?? "127.0.0.1",
+  port: Number(process.env['FACTORIO_RCON_PORT'] ?? "27015"),
   password,
   connect_timeout_ms: 5000,
   request_timeout_ms: 15000
@@ -15,8 +15,8 @@ try {
   const miner = await client.spawnBot({
     id: "miner-1",
     network: "main",
-    surface: process.env.FACTORIO_SURFACE ?? "nauvis",
-    force: process.env.FACTORIO_FORCE ?? "player",
+    surface: process.env['FACTORIO_SURFACE'] ?? "nauvis",
+    force: process.env['FACTORIO_FORCE'] ?? "player",
     position: { x: 0, y: 0 }
   });
 
