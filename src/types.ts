@@ -483,10 +483,50 @@ export interface ChatSendOptions {
 }
 
 export interface BotAction {
-  readonly kind: "walk" | "mine";
+  readonly kind: "walk" | "mine" | "pickup" | "attack" | "repair" | "drive";
   readonly direction?: number;
   readonly position?: Position;
+  readonly unit_number?: number;
+  readonly acceleration?: number;
   readonly until_tick: number;
+}
+
+export interface BotInventoryView {
+  readonly id: string;
+  readonly inventories: readonly Inventory[];
+  readonly crafting_queue: readonly JsonObject[];
+  readonly crafting_progress: number;
+  readonly selected_gun_index?: number;
+  readonly vehicle_unit_number?: number;
+}
+
+export interface InventoryTransferInput {
+  readonly id: string;
+  readonly unit_number: number;
+  readonly direction: "to-entity" | "from-entity";
+  readonly name: string;
+  readonly count: number;
+  readonly quality?: string;
+  readonly bot_inventory_index?: number;
+  readonly target_inventory_index?: number;
+}
+
+export interface InventoryTransferResult {
+  readonly id: string;
+  readonly unit_number: number;
+  readonly direction: "to-entity" | "from-entity";
+  readonly name: string;
+  readonly quality?: string;
+  readonly requested: number;
+  readonly moved: number;
+}
+
+export interface ItemDropResult {
+  readonly id: string;
+  readonly name: string;
+  readonly quality?: string;
+  readonly count: number;
+  readonly spilled: number;
 }
 
 export interface Bot {
